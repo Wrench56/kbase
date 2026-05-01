@@ -1,0 +1,19 @@
+# Ignore LSP cache
+.ccls-cache/
+compile_commands.json
+
+# Ignore static analyzer artifacts
+analyzer-html/
+
+# Ignore CForge artifacts
+.cforge.db
+.b
+
+# Ignore build artifacts
+build/
+
+# Ignore direnv directory
+.direnv/
+
+# Ignore commitlint executable
+tools/commitlint*
