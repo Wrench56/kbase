@@ -5,18 +5,52 @@
 #include "commands/sync.h"
 
 #include "git/git_bridge.h"
+#include "ui/pbar.h"
 
 #define MAX_PATH_NAME 4096
 
-char cwd[MAX_PATH_NAME] = { 0 };
+static char cwd[MAX_PATH_NAME] = { 0 };
+static uint8_t checkout_done = 0;
+static transfer_state_t transfer_state = RECEIVE;
 
 static int transfer_progress(const git_indexer_progress* progress, void* data) {
-    /* TODO: Make this look cool */
+    switch (transfer_state) {
+        case RECEIVE:
+            progress_bar("Receiving objects", progress->received_objects, progress->total_objects);
+            if (progress->received_objects >= progress->total_objects && progress->received_objects > 0) {
+                ++transfer_state;
+            }
+            break;
+
+        case INDEX:
+            progress_bar("Indexing objects", progress->indexed_objects, progress->total_objects);
+            if (progress->indexed_objects >= progress->total_objects && progress->total_objects > 0) {
+                ++transfer_state;
+            }
+            break;
+
+        case RESOLVE:
+            progress_bar("Resolving deltas", progress->indexed_deltas, progress->total_deltas);
+            if (progress->indexed_deltas >= progress->total_deltas && progress->total_deltas > 0) {
+                ++transfer_state;
+            }
+            break;
+
+        case DONE:
+            return 0;
+    }
     return 0;
 }
 
 static void checkout_progress(const char* path, size_t cur, size_t tot, void* payload) {
-    /* TODO: Make this look cool */
+    if (checkout_done) {
+        return;
+    }
+
+    progress_bar("Checking out files", cur, tot);
+    if (cur >= tot) {
+        checkout_done = 1;
+    }
 }
 
 void cmd_sync(int32_t argc, char** argv) {
@@ -29,6 +63,8 @@ void cmd_sync(int32_t argc, char** argv) {
 
     }
 
+    checkout_done = 0;
+    transfer_state = RECEIVE;
     int32_t opt = getopt(argc, argv, "n:");
     if (opt != -1) {
         printf("Creating new knowledge base...\n");
@@ -38,7 +74,7 @@ void cmd_sync(int32_t argc, char** argv) {
 
     printf("Syncing knowledge base...\n");
     repo = git_find_repo(cwd);
-    git_sync_repo(repo, &transfer_progress);
+    git_sync_repo(repo, transfer_progress);
 
 cleanup:
     git_repository_free(repo);
