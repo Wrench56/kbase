@@ -23,6 +23,7 @@ rules:
       - license
       - core
       - sync
+      - ui
   subject-empty:
     level: error
   type:
