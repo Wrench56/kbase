@@ -10,12 +10,12 @@
 
 char cwd[MAX_PATH_NAME] = { 0 };
 
-int transfer_progress(const git_indexer_progress* progress, void* data) {
+static int transfer_progress(const git_indexer_progress* progress, void* data) {
     /* TODO: Make this look cool */
     return 0;
 }
 
-void checkout_progress(const char* path, size_t cur, size_t tot, void* payload) {
+static void checkout_progress(const char* path, size_t cur, size_t tot, void* payload) {
     /* TODO: Make this look cool */
 }
 

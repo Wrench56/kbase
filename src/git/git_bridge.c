@@ -8,7 +8,7 @@
 
 #define MAX_UNIX_PATH_SIZE 4096
 
-static void git_die(const char* msg, int32_t error) {
+static __attribute__((noreturn)) void git_die(const char* msg, int32_t error) {
     const git_error* e = git_error_last();
     fprintf(stderr, "%s: %s (%d)\n", msg, e ? e->message : "unknown libgit2 error", error);
     exit(1);
@@ -82,7 +82,7 @@ void git_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progre
     git_remote_free(remote);
 }
 
-git_repository* git_clone_repo(char* url, char* cwd,  git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb) {
+git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb) {
     char* dir = repo_name_from_url(url);
     if (mkdir(dir, 0777) != 0) {
         perror("mkdir() error");
@@ -102,8 +102,10 @@ git_repository* git_clone_repo(char* url, char* cwd,  git_indexer_progress_cb tr
     if (error != 0) {
         char errmsg[4096];
         snprintf(errmsg, sizeof(errmsg), "Error: could not clone knowledge base at \"%s\"", url);
+        free(dir);
         git_die(errmsg, error);
     }
 
+    free(dir);
     return repo;
 }
