@@ -53,6 +53,12 @@ static void checkout_progress(const char* path, size_t cur, size_t tot, void* pa
     }
 }
 
+static int notify_cb(git_checkout_notify_t reason, const char* path, const git_diff_file* baseline, const git_diff_file* target, const git_diff_file* workdir, void* payload) {
+    fprintf(stderr, "checkout notify: reason=%d path=%s\n", reason, path);
+    fflush(stderr);
+    return 0;
+}
+
 void cmd_sync(int32_t argc, char** argv) {
     git_init();
     git_repository* repo = NULL;
@@ -74,7 +80,7 @@ void cmd_sync(int32_t argc, char** argv) {
 
     printf("Syncing knowledge base...\n");
     repo = git_find_repo(cwd);
-    git_sync_repo(repo, transfer_progress);
+    git_sync_repo(repo, transfer_progress, checkout_progress, notify_cb);
 
 cleanup:
     git_repository_free(repo);

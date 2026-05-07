@@ -53,7 +53,7 @@ git_repository* git_find_repo(char* cwd) {
     }
 
     git_repository* repo = NULL;
-    error = git_repository_open_bare(&repo, repo_name_buf.ptr);
+    error = git_repository_open(&repo, repo_name_buf.ptr);
     git_buf_dispose(&repo_name_buf);
     if (error != 0) {
         git_die("Error: could not open knowledge base", error);
@@ -62,8 +62,95 @@ git_repository* git_find_repo(char* cwd) {
     return repo;
 }
 
+static void git_fast_forward_current_branch(git_repository* repo, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb checkout_notify_cb) {
+    git_reference* head = NULL;
+    git_reference* upstream = NULL;
+    git_reference* updated_head = NULL;
+    git_annotated_commit* upstream_commit = NULL;
+    git_object* upstream_target = NULL;
 
-void git_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progress_cb) {
+    const char* errmsg = NULL;
+    int32_t error = 0;
+
+    error = git_repository_head(&head, repo);
+    if (error != 0) {
+        errmsg = "Error: could not read HEAD";
+        goto cleanup;
+    }
+
+    error = git_branch_upstream(&upstream, head);
+    if (error != 0) {
+        errmsg = "Error: current branch has no upstream";
+        goto cleanup;
+    }
+
+    const git_oid* upstream_oid = git_reference_target(upstream);
+    if (upstream_oid == NULL) {
+        error = -1;
+        errmsg = "Error: upstream reference has no target";
+        goto cleanup;
+    }
+
+    error = git_annotated_commit_lookup(&upstream_commit, repo, upstream_oid);
+    if (error != 0) {
+        errmsg = "Error: could not lookup upstream commit";
+        goto cleanup;
+    }
+
+    const git_annotated_commit* heads[] = { upstream_commit };
+    git_merge_analysis_t analysis = 0;
+    git_merge_preference_t preference = 0;
+
+    error = git_merge_analysis(&analysis, &preference, repo, heads, 1);
+    if (error != 0) {
+        errmsg = "Error: could not analyze merge";
+        goto cleanup;
+    }
+
+    if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
+        goto cleanup;
+    }
+
+    if (!(analysis & GIT_MERGE_ANALYSIS_FASTFORWARD)) {
+        error = -1;
+        errmsg = "Error: branch cannot be fast-forwarded";
+        goto cleanup;
+    }
+
+    error = git_object_lookup(&upstream_target, repo, upstream_oid, GIT_OBJECT_COMMIT);
+    if (error != 0) {
+        errmsg = "Error: could not lookup upstream target";
+        goto cleanup;
+    }
+
+    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+    checkout_opts.progress_cb = checkout_progress_cb;
+    checkout_opts.notify_cb = checkout_notify_cb;
+    checkout_opts.notify_flags = GIT_CHECKOUT_NOTIFY_ALL;
+
+    error = git_checkout_tree(repo, upstream_target, &checkout_opts);
+    if (error != 0) {
+        errmsg = "Error: could not checkout upstream tree";
+        goto cleanup;
+    }
+
+    error = git_reference_set_target(&updated_head, head, upstream_oid, "kbase sync: fast-forward");
+    if (error != 0) {
+        errmsg = "Error: could not update branch ref";
+        goto cleanup;
+    }
+
+cleanup:
+    if (updated_head) git_reference_free(updated_head);
+    if (upstream_target) git_object_free(upstream_target);
+    if (upstream_commit) git_annotated_commit_free(upstream_commit);
+    if (upstream) git_reference_free(upstream);
+    if (head) git_reference_free(head);
+    if (errmsg) git_die(errmsg, error);
+}
+
+void git_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
     git_remote* remote;
     int32_t error = git_remote_lookup(&remote, repo, "origin");
     if (error != 0) {
@@ -77,6 +164,8 @@ void git_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progre
     if (error != 0) {
         git_die("Error: could not fetch from remote", error);
     }
+
+    git_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
 
     /* TODO: git_remote_stats() here */
     git_remote_free(remote);
