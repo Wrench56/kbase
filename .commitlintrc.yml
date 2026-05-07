@@ -22,6 +22,7 @@ rules:
       - commitlint
       - license
       - core
+      - sync
   subject-empty:
     level: error
   type:
