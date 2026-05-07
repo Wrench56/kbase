@@ -4,9 +4,11 @@
 #include "cmd.h"
 
 #include "commands/help.h"
+#include "commands/sync.h"
 
 cmd_t cmds[] = {
     {"help", cmd_help},
+    {"sync", cmd_sync},
 };
 
 void call_cmd(int32_t argc, char** argv) {
