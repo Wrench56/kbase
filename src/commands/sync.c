@@ -8,7 +8,7 @@
 
 #define MAX_PATH_NAME 4096
 
-char cwd[4096] = { 0 };
+char cwd[MAX_PATH_NAME] = { 0 };
 
 int transfer_progress(const git_indexer_progress* progress, void* data) {
     /* TODO: Make this look cool */
@@ -21,6 +21,8 @@ void checkout_progress(const char* path, size_t cur, size_t tot, void* payload) 
 
 void cmd_sync(int32_t argc, char** argv) {
     git_init();
+    git_repository* repo = NULL;
+
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         perror("getcwd() error");
         goto error;
@@ -30,14 +32,16 @@ void cmd_sync(int32_t argc, char** argv) {
     int32_t opt = getopt(argc, argv, "n:");
     if (opt != -1) {
         printf("Creating new knowledge base...\n");
-        git_clone_repo(optarg, cwd, transfer_progress, checkout_progress);
-        return;
+        repo = git_clone_repo(optarg, cwd, transfer_progress, checkout_progress);
+        goto cleanup;
     }
 
-    git_repository* repo = git_find_repo(cwd);
+    printf("Syncing knowledge base...\n");
+    repo = git_find_repo(cwd);
     git_sync_repo(repo, &transfer_progress);
 
-    printf("Syncing knowledge base...\n");
+cleanup:
+    git_repository_free(repo);
     git_free();
     return;
 
