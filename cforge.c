@@ -61,12 +61,18 @@ CF_TARGET(link, CF_DEPENDS(compile), CF_HIDDEN) {
     }
 }
 
-CF_TARGET(compile, CF_HIDDEN) {
-    CF_MKDIR(BUILD_DIR);
-    for CF_GLOBS_EACH("src/*.c", file) {
-        char* output = CF_MAP(file, CF_MAP_EXT("o"), CF_MAP_PARENT(BUILD_DIR));
+static bool compile_pattern(const char* pattern) {
+    bool rebuilt = false;
+
+    for CF_GLOBS_EACH(pattern, file) {
+        char* output = CF_MAP(
+            file,
+            CF_MAP_EXT("o"),
+            CF_MAP_DIRS(BUILD_DIR "/"),
+        );
+
         if (CF_FILE_NOT_UTD(file) || CF_FILE_NOT_UTD(output)) {
-            was_rebuilt = true;
+            rebuilt = true;
             CF_BANNER(CC_TAG "Compiling...");
             printf(CC_TAG "  %s\n", file);
             CF_RUNP("cc %s %s -c %s -o %s",
@@ -79,5 +85,13 @@ CF_TARGET(compile, CF_HIDDEN) {
             CF_FILE_MARK_UTDP(output);
         }
     }
+    
+    return rebuilt;
+}
+
+CF_TARGET(compile, CF_HIDDEN) {
+    CF_MKDIR(BUILD_DIR);
+    was_rebuilt |= compile_pattern("src/*.c");
+    was_rebuilt |= compile_pattern("src/*/*.c");
 }
 
