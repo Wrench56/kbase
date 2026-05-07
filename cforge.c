@@ -21,6 +21,7 @@ CF_CONFIG(release) {
     CF_SET_ENV(mode, "release");
 
     CF_SET_ENV(cflags, "-O2");
+    CF_SET_ENV(lflags, "-lgit2");
     CF_SET_ENV(includes, "-Iincludes/");
 }
 
@@ -28,6 +29,7 @@ CF_CONFIG(debug) {
     CF_SET_ENV(mode, "debug");
     
     CF_SET_ENV(cflags, "-g");
+    CF_SET_ENV(lflags, "-lgit2");
     CF_SET_ENV(includes, "-Iincludes/");
 }
 
@@ -56,7 +58,7 @@ CF_TARGET(link, CF_DEPENDS(compile), CF_HIDDEN) {
         CF_BANNER(LD_TAG "Linking...");
         char* object_files = CF_JOIN_GLOB(CF_GLOB(BUILD_DIR "/*.o"), " ");
         printf(LD_TAG "  %s\n", object_files);
-        CF_RUN("cc %s -o %s/%s", object_files, BUILD_DIR, APP_NAME);
+        CF_RUN("cc %s %s -o %s/%s", CF_ENV(lflags), object_files, BUILD_DIR, APP_NAME);
         CF_FILE_MARK_UTD(BUILD_DIR "/" APP_NAME);
     }
 }
