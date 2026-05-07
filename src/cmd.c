@@ -3,7 +3,7 @@
 
 #include "cmd.h"
 
-#include "help.h"
+#include "commands/help.h"
 
 cmd_t cmds[] = {
     {"help", cmd_help},
