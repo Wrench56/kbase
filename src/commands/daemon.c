@@ -6,7 +6,7 @@
 
 #include "commands/daemon.h"
 
-#include "git/git_bridge.h"
+#include "kgit/git_bridge.h"
 
 static void get_username(char* username, size_t maxsize) {
     uid_t uid = getuid();
@@ -27,24 +27,26 @@ void cmd_daemon(int32_t argc, char** argv) {
     char branch[512] = { 0 };
     snprintf(branch, sizeof(branch), "worktree/%s", username);
 
-    git_init();
-    git_repository* repo = git_find_repo(cwd);
+    kgit_init();
+    git_repository* repo = kgit_find_repo(cwd);
     printf("Syncing workspace branch \"%s\"\n", branch);
-    git_sync_workspace_branch(repo, branch, NULL, NULL, NULL);
+    kgit_sync_workspace_branch(repo, branch, NULL, NULL, NULL);
 
     time_t curr_time;
     for (;;) {
         sleep(1);
         printf("ref\n");
         fflush(stdout);
-        if (git_has_new_changes(repo)) {
+        if (kgit_has_new_changes(repo)) {
             time(&curr_time);
             printf("Autosaving...\n");
             fflush(stdout);
 
             snprintf(commitmsg, sizeof(commitmsg), "Autosave on %s", ctime(&curr_time));
-            git_commit_all(repo, commitmsg);
-            git_push_branch(repo, branch);
+            kgit_commit_all(repo, commitmsg);
+            kgit_push_branch(repo, branch);
         }
     }
+
+    kgit_free();
 }

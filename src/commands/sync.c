@@ -4,7 +4,7 @@
 
 #include "commands/sync.h"
 
-#include "git/git_bridge.h"
+#include "kgit/git_bridge.h"
 #include "ui/pbar.h"
 
 #define MAX_PATH_NAME 4096
@@ -60,7 +60,7 @@ static int notify_cb(git_checkout_notify_t reason, const char* path, const git_d
 }
 
 void cmd_sync(int32_t argc, char** argv) {
-    git_init();
+    kgit_init();
     git_repository* repo = NULL;
 
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
@@ -74,20 +74,20 @@ void cmd_sync(int32_t argc, char** argv) {
     int32_t opt = getopt(argc, argv, "n:");
     if (opt != -1) {
         printf("Creating new knowledge base...\n");
-        repo = git_clone_repo(optarg, cwd, transfer_progress, checkout_progress);
+        repo = kgit_clone_repo(optarg, cwd, transfer_progress, checkout_progress);
         goto cleanup;
     }
 
     printf("Syncing knowledge base...\n");
-    repo = git_find_repo(cwd);
-    git_sync_repo(repo, transfer_progress, checkout_progress, notify_cb);
+    repo = kgit_find_repo(cwd);
+    kgit_sync_repo(repo, transfer_progress, checkout_progress, notify_cb);
 
 cleanup:
     git_repository_free(repo);
-    git_free();
+    kgit_free();
     return;
 
 error:
-    git_free();
+    kgit_free();
     exit(1);
 }

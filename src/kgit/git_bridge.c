@@ -4,7 +4,7 @@
 
 #include <git2.h>
 
-#include "git/git_bridge.h"
+#include "kgit/git_bridge.h"
 
 #define MAX_UNIX_PATH_SIZE 4096
 
@@ -85,7 +85,7 @@ cleanup:
     return ret;
 }
 
-static git_reference* git_new_branch_from_remote(git_repository* repo, const char* branch_name) {
+static git_reference* kgit_new_branch_from_remote(git_repository* repo, const char* branch_name) {
     git_reference* remote = NULL;
     git_reference* local = NULL;
     git_object* target = NULL;
@@ -126,15 +126,15 @@ cleanup:
     return local;
 }
 
-void git_init(void) {
+void kgit_init(void) {
     git_libgit2_init();
 }
 
-void git_free(void) {
+void kgit_free(void) {
     git_libgit2_shutdown();
 }
 
-git_repository* git_find_repo(char* cwd) {
+git_repository* kgit_find_repo(char* cwd) {
     git_buf repo_name_buf = { 0 };
     int32_t error = git_repository_discover(&repo_name_buf, cwd, 1, NULL);
     if (error != 0) {
@@ -152,7 +152,7 @@ git_repository* git_find_repo(char* cwd) {
     return repo;
 }
 
-static void git_fast_forward_current_branch(git_repository* repo, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb checkout_notify_cb) {
+static void kgit_fast_forward_current_branch(git_repository* repo, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb checkout_notify_cb) {
     git_reference* head = NULL;
     git_reference* upstream = NULL;
     git_reference* updated_head = NULL;
@@ -240,14 +240,14 @@ cleanup:
     if (errmsg) git_die(errmsg, error);
 }
 
-void git_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
+void kgit_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
     git_fetch_origin(repo, transfer_progress_cb);
-    git_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
+    kgit_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
 
     /* TODO: git_remote_stats() here */
 }
 
-git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb) {
+git_repository* kgit_clone_repo(char* url, const char* cwd,  git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb) {
     char* dir = repo_name_from_url(url);
     if (mkdir(dir, 0777) != 0) {
         perror("mkdir() error");
@@ -276,16 +276,16 @@ git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress
     return repo;
 }
 
-void git_sync_workspace_branch(git_repository* repo, const char* branch_name, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
+void kgit_sync_workspace_branch(git_repository* repo, const char* branch_name, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
     git_reference* branch = NULL;
     bool has_upstream = true;
 
     git_fetch_origin(repo, transfer_progress_cb);
-    if (!git_switch_branch(repo, branch_name)) {
-        branch = git_new_branch_from_remote(repo, branch_name);
+    if (!kgit_switch_branch(repo, branch_name)) {
+        branch = kgit_new_branch_from_remote(repo, branch_name);
         if (branch == NULL) {
             has_upstream = false;
-            branch = git_new_branch(repo, (char*) branch_name);
+            branch = kgit_new_branch(repo, (char*) branch_name);
         }
 
         if (branch == NULL) {
@@ -293,17 +293,17 @@ void git_sync_workspace_branch(git_repository* repo, const char* branch_name, gi
         }
 
         git_reference_free(branch);
-        if (!git_switch_branch(repo, branch_name)) {
+        if (!kgit_switch_branch(repo, branch_name)) {
             git_die("Could not switch to workspace branch", -1);
         }
     }
 
     if (has_upstream) {
-        git_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
+        kgit_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
     }
 }
 
-git_reference* git_new_branch(git_repository* repo, char* name) {
+git_reference* kgit_new_branch(git_repository* repo, char* name) {
     git_reference* head_ref = NULL;
     git_object* head_obj = NULL;
     git_reference* branch = NULL;
@@ -331,7 +331,7 @@ cleanup:
     return branch;
 }
 
-bool git_is_branch(git_repository* repo, char* branch_name) {
+bool kgit_is_branch(git_repository* repo, char* branch_name) {
     git_reference* head = NULL;
     const char* name = NULL;
     bool ret = false;
@@ -355,7 +355,7 @@ cleanup:
     return ret;
 }
 
-bool git_switch_branch(git_repository* repo, const char* name) {
+bool kgit_switch_branch(git_repository* repo, const char* name) {
     git_reference* branch = NULL;
     git_object* target = NULL;
     bool ret = false;
@@ -401,7 +401,7 @@ cleanup:
     return ret;
 }
 
-void git_commit_all(git_repository* repo, char* msg) {
+void kgit_commit_all(git_repository* repo, char* msg) {
     git_index* index = NULL;
     git_reference* head = NULL;
     git_tree* tree = NULL;
@@ -512,7 +512,7 @@ cleanup:
     if (errmsg) git_die(errmsg, error);
 }
 
-bool git_has_new_changes(git_repository* repo) {
+bool kgit_has_new_changes(git_repository* repo) {
     git_status_list* status = NULL;
     bool ret = false;
 
@@ -531,7 +531,7 @@ cleanup:
     return ret;
 }
 
-void git_push_branch(git_repository* repo, char* branch_name) {
+void kgit_push_branch(git_repository* repo, char* branch_name) {
     git_remote* remote = NULL;
     git_strarray refspecs = { 0 };
     char refspec[2048];
