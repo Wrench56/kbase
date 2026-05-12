@@ -198,3 +198,224 @@ git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress
     free(dir);
     return repo;
 }
+
+git_reference* git_new_branch(git_repository* repo, char* name) {
+    git_reference* head_ref = NULL;
+    git_object* head_obj = NULL;
+    git_reference* branch = NULL;
+
+    int32_t error = git_repository_head(&head_ref, repo);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+
+    error = git_reference_peel(&head_obj, head_ref, GIT_OBJECT_COMMIT);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    error = git_branch_create(&branch, repo, name, (git_commit*) head_obj, 0);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+cleanup:
+    if (head_obj) git_object_free(head_obj);
+    if (head_ref) git_reference_free(head_ref);
+
+    return branch;
+}
+
+bool git_is_branch(git_repository* repo, char* branch_name) {
+    git_reference* head = NULL;
+    const char* name = NULL;
+    bool ret = false;
+
+    int32_t error = git_repository_head(&head, repo);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    error = git_branch_name(&name, head);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    if (strcmp(name, branch_name) == 0) {
+        ret = true;
+    }
+
+cleanup:
+    if (head) git_reference_free(head);
+    return ret;
+}
+
+bool git_switch_branch(git_repository* repo, const char* name) {
+    git_reference* branch = NULL;
+    git_object* target = NULL;
+    bool ret = false;
+
+    int32_t error = git_branch_lookup(&branch, repo, name, GIT_BRANCH_LOCAL);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    error = git_reference_peel(&target, branch, GIT_OBJECT_COMMIT);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+    opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    /* TODO: Make sure this does not fail */
+    char headstr[1024] = { 0 };
+    snprintf(headstr, sizeof(headstr), "refs/heads/%s", name);
+    error = git_repository_set_head(repo, headstr);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    error = git_checkout_head(repo, &opts);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    ret = true;
+
+cleanup:
+    if (branch) git_reference_free(branch);
+    if (target) git_object_free(target);
+    return ret;
+}
+
+void git_commit_all(git_repository* repo, char* msg) {
+    git_index* index = NULL;
+    git_reference* head = NULL;
+    git_tree* tree = NULL;
+    git_commit* parent = NULL;
+    git_config* cfg = NULL;
+    git_config_entry* mentry = NULL;
+    git_config_entry* nentry = NULL;
+    
+    char* errmsg = NULL;
+
+    git_oid tree_oid;
+
+    int32_t error = git_repository_index(&index, repo);
+    if (error < 0) {
+        errmsg = "Failed to fetch index";
+        goto cleanup;
+    }
+    
+    git_strarray paths_arr = { 0 };
+    error = git_index_add_all(index, &paths_arr, GIT_INDEX_ADD_DEFAULT, NULL, NULL);
+    if (error < 0) {
+        errmsg = "Failed to stage all files (add)";
+        goto cleanup;
+    }
+
+    error = git_index_update_all(index, &paths_arr, NULL, NULL);
+    if (error < 0) {
+        errmsg = "Failed to stage all files (update)";
+        goto cleanup;
+    }
+
+    error = git_repository_head(&head, repo);
+    if (error < 0) {
+        errmsg = "Failed to fetch refhead";
+        goto cleanup;
+    }
+
+    const git_oid* parent_oid = git_reference_target(head);
+    if (!parent_oid) {
+        errmsg = "Failed to resolve reftarget";
+        goto cleanup;
+    }
+
+    error = git_commit_lookup(&parent, repo, parent_oid);
+    if (error < 0) {
+        errmsg = "Failed to fetch parent commit";
+        goto cleanup;
+    }
+
+    error = git_config_open_default(&cfg);
+    if (error < 0) {
+        errmsg = "Failed to open config";
+        goto cleanup;
+    }
+
+    error = git_config_get_entry(&mentry, cfg, "user.email");
+    if (error < 0) {
+        errmsg = "Failed to fetch email from config";
+        goto cleanup;
+    }
+
+    error = git_config_get_entry(&nentry, cfg, "user.name");
+    if (error < 0) {
+        errmsg = "Failed to fetch name from config";
+        goto cleanup;
+    }
+
+    git_signature* me = NULL;
+    error = git_signature_now(&me, nentry->value, mentry->value);
+    if (error < 0) {
+        errmsg = "Failed to create commit signature";
+        goto cleanup;
+    }
+
+    error = git_index_write(index);
+    if (error < 0) {
+        errmsg = "Failed to write index";
+        goto cleanup;
+    }
+
+    error = git_index_write_tree(&tree_oid, index);
+    if (error < 0) {
+        errmsg = "Failed to write index tree";
+        goto cleanup;
+    }
+
+    error = git_tree_lookup(&tree, repo, &tree_oid);
+    if (error < 0) {
+        errmsg = "Failed to fetch tree";
+        goto cleanup;
+    }
+
+    const git_commit* parents[] = { parent };
+    git_oid new_commit;
+    error = git_commit_create(&new_commit, repo, "HEAD", me, me, "UTF-8", msg, tree, 1, parents);
+    if (error < 0) {
+        errmsg = "Failed to create new commit";
+    }
+
+cleanup:
+    if (index) git_index_free(index);
+    if (head) git_reference_free(head);
+    if (tree) git_tree_free(tree);
+    if (parent) git_commit_free(parent);
+    if (cfg) git_config_free(cfg);
+    if (mentry) git_config_entry_free(mentry);
+    if (nentry) git_config_entry_free(nentry);
+    if (errmsg) git_die(errmsg, error);
+}
+
+bool git_has_new_changes(git_repository* repo) {
+    git_status_list* status = NULL;
+    bool ret = false;
+
+    git_status_options opts = GIT_STATUS_OPTIONS_INIT;
+    int32_t error = git_status_list_new(&status, repo, &opts);
+    if (error < 0) {
+        goto cleanup;
+    }
+
+    if (git_status_list_entrycount(status) > 0) {
+        ret = true;
+    }
+
+cleanup:
+    if (status) git_status_list_free(status);
+    return ret;
+}
