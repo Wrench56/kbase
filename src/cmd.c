@@ -5,10 +5,12 @@
 
 #include "commands/help.h"
 #include "commands/sync.h"
+#include "commands/daemon.h"
 
 cmd_t cmds[] = {
     {"help", cmd_help},
     {"sync", cmd_sync},
+    {"daemon", cmd_daemon},
 };
 
 void call_cmd(int32_t argc, char** argv) {
