@@ -6,6 +6,7 @@ compile_commands.json
 analyzer-html/
 
 # Ignore CForge artifacts
+cforge.h
 .cforge.db
 .b
 
