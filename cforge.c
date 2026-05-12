@@ -28,8 +28,8 @@ CF_CONFIG(release) {
 CF_CONFIG(debug) {
     CF_SET_ENV(mode, "debug");
     
-    CF_SET_ENV(cflags, "-g");
-    CF_SET_ENV(lflags, "-lgit2");
+    CF_SET_ENV(cflags, "-g -fsanitize=undefined");
+    CF_SET_ENV(lflags, "-lgit2 -fsanitize=undefined");
     CF_SET_ENV(includes, "-Iincludes/");
 }
 
