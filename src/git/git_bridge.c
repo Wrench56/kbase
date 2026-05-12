@@ -36,14 +36,6 @@ static char* repo_name_from_url(const char* url) {
     return name;
 }
 
-void git_init(void) {
-    git_libgit2_init();
-}
-
-void git_free(void) {
-    git_libgit2_shutdown();
-}
-
 static int32_t ssh_agent_cred_cb(git_credential** out, const char* url, const char* username, uint32_t allowed_types, void* payload) {
     (void) payload;
 
@@ -61,6 +53,85 @@ static int32_t ssh_agent_cred_cb(git_credential** out, const char* url, const ch
     }
 
     return GIT_PASSTHROUGH;
+}
+
+static bool git_fetch_origin(git_repository* repo, git_indexer_progress_cb transfer_progress_cb) {
+    git_remote* remote = NULL;
+
+    char* errmsg = NULL;
+    bool ret = false;
+
+    int32_t error = git_remote_lookup(&remote, repo, "origin");
+    if (error < 0) {
+        errmsg = "Failed to look up remote";
+        goto cleanup;
+    }
+
+    git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
+    opts.callbacks.credentials = ssh_agent_cred_cb;
+    opts.callbacks.transfer_progress = transfer_progress_cb;
+
+    error = git_remote_fetch(remote, NULL, &opts, NULL);
+    if (error < 0) {
+        errmsg = "Failed to fetch remote";
+        goto cleanup;
+    }
+
+    ret = true;
+
+cleanup:
+    if (remote) git_remote_free(remote);
+    if (errmsg) git_die(errmsg, error);
+    return ret;
+}
+
+static git_reference* git_new_branch_from_remote(git_repository* repo, const char* branch_name) {
+    git_reference* remote = NULL;
+    git_reference* local = NULL;
+    git_object* target = NULL;
+
+    char* errmsg = NULL;
+
+    char remote_branch[1024];
+    snprintf(remote_branch, sizeof(remote_branch), "origin/%s", branch_name);
+
+    int32_t error = git_branch_lookup(&remote, repo, remote_branch, GIT_BRANCH_REMOTE);
+    if (error < 0) {
+        errmsg = "Failed to find remote branch";
+        goto cleanup;
+    }
+
+    error = git_reference_peel(&target, remote, GIT_OBJECT_COMMIT);
+    if (error < 0) {
+        errmsg = "Failed to peel reference";
+        goto cleanup;
+    }
+
+    error = git_branch_create(&local, repo, branch_name, (git_commit*) target, 0);
+    if (error < 0) {
+        errmsg = "Failed to create branch";
+        goto cleanup;
+    }
+
+    error = git_branch_set_upstream(local, remote_branch);
+    if (error < 0) {
+        errmsg = "Failed to set branch upstream";
+        goto cleanup;
+    }
+
+cleanup:
+    if (remote) git_reference_free(remote);
+    if (target) git_object_free(target);
+
+    return local;
+}
+
+void git_init(void) {
+    git_libgit2_init();
+}
+
+void git_free(void) {
+    git_libgit2_shutdown();
 }
 
 git_repository* git_find_repo(char* cwd) {
@@ -170,24 +241,10 @@ cleanup:
 }
 
 void git_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
-    git_remote* remote;
-    int32_t error = git_remote_lookup(&remote, repo, "origin");
-    if (error != 0) {
-        git_die("Error: could not lookup origin", error);
-    }
-
-    git_fetch_options fetch_opts = GIT_FETCH_OPTIONS_INIT;
-    fetch_opts.callbacks.transfer_progress = transfer_progress_cb;
-
-    error = git_remote_fetch(remote, NULL, &fetch_opts, NULL);
-    if (error != 0) {
-        git_die("Error: could not fetch from remote", error);
-    }
-
+    git_fetch_origin(repo, transfer_progress_cb);
     git_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
 
     /* TODO: git_remote_stats() here */
-    git_remote_free(remote);
 }
 
 git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb) {
@@ -217,6 +274,33 @@ git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress
 
     free(dir);
     return repo;
+}
+
+void git_sync_workspace_branch(git_repository* repo, const char* branch_name, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
+    git_reference* branch = NULL;
+    bool has_upstream = true;
+
+    git_fetch_origin(repo, transfer_progress_cb);
+    if (!git_switch_branch(repo, branch_name)) {
+        branch = git_new_branch_from_remote(repo, branch_name);
+        if (branch == NULL) {
+            has_upstream = false;
+            branch = git_new_branch(repo, (char*) branch_name);
+        }
+
+        if (branch == NULL) {
+            git_die("Could not create workspace branch", -1);
+        }
+
+        git_reference_free(branch);
+        if (!git_switch_branch(repo, branch_name)) {
+            git_die("Could not switch to workspace branch", -1);
+        }
+    }
+
+    if (has_upstream) {
+        git_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
+    }
 }
 
 git_reference* git_new_branch(git_repository* repo, char* name) {
@@ -276,29 +360,35 @@ bool git_switch_branch(git_repository* repo, const char* name) {
     git_object* target = NULL;
     bool ret = false;
 
+    char* errmsg = NULL;
+
     int32_t error = git_branch_lookup(&branch, repo, name, GIT_BRANCH_LOCAL);
     if (error < 0) {
+        errmsg = "Failed to find local branch";
         goto cleanup;
     }
 
     error = git_reference_peel(&target, branch, GIT_OBJECT_COMMIT);
     if (error < 0) {
+        errmsg = "Failed to find commit on branch";
         goto cleanup;
     }
 
     git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
-    opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+    opts.checkout_strategy = GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
 
-    /* TODO: Make sure this does not fail */
-    char headstr[1024] = { 0 };
-    snprintf(headstr, sizeof(headstr), "refs/heads/%s", name);
-    error = git_repository_set_head(repo, headstr);
+    error = git_checkout_tree(repo, target, &opts);
     if (error < 0) {
+        errmsg = "Failed to checkout tree";
         goto cleanup;
     }
 
-    error = git_checkout_head(repo, &opts);
+    char headstr[1024] = { 0 };
+    snprintf(headstr, sizeof(headstr), "refs/heads/%s", name);
+
+    error = git_repository_set_head(repo, headstr);
     if (error < 0) {
+        errmsg = "Failed to set HEAD";
         goto cleanup;
     }
 
@@ -307,6 +397,7 @@ bool git_switch_branch(git_repository* repo, const char* name) {
 cleanup:
     if (branch) git_reference_free(branch);
     if (target) git_object_free(target);
+    if (errmsg) git_die(errmsg, error);
     return ret;
 }
 

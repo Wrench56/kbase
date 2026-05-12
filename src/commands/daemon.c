@@ -29,15 +29,8 @@ void cmd_daemon(int32_t argc, char** argv) {
 
     git_init();
     git_repository* repo = git_find_repo(cwd);
-    if (!git_is_branch(repo, branch)) {
-        printf("Switching to session branch \"%s\"...\n", branch);
-        if (!git_switch_branch(repo, branch)) {
-            printf("Creating non-existent session branch...\n");
-            git_new_branch(repo, branch);
-            git_switch_branch(repo, branch);
-        }
-    }
-    
+    printf("Syncing workspace branch \"%s\"\n", branch);
+    git_sync_workspace_branch(repo, branch, NULL, NULL, NULL);
 
     time_t curr_time;
     for (;;) {

@@ -21,4 +21,6 @@ void git_push_branch(git_repository* repo, char* branch_name);
 bool git_has_new_changes(git_repository* repo);
 void git_commit_all(git_repository* repo, char* msg);
 
+void git_sync_workspace_branch(git_repository* repo, const char* branch_name, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb);
+
 #endif // KBASE_GIT_BRIDGE_H
