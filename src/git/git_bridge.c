@@ -47,7 +47,7 @@ void git_free(void) {
 static int32_t ssh_agent_cred_cb(git_credential** out, const char* url, const char* username, uint32_t allowed_types, void* payload) {
     (void) payload;
 
-    printf("Authenticate for \"%s\"...\n", url);
+    printf("Authenticating for \"%s\"...\n", url);
     if (username == NULL) {
         username = "git";
     }
@@ -204,6 +204,7 @@ git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress
     clone_opts.checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
     clone_opts.checkout_opts.progress_cb = checkout_progress_cb;
     clone_opts.fetch_opts.callbacks.transfer_progress = transfer_progress_cb;
+    clone_opts.fetch_opts.callbacks.credentials = ssh_agent_cred_cb;
 
     git_repository* repo = NULL;
     int32_t error = git_clone(&repo, url, repo_dir, &clone_opts);
