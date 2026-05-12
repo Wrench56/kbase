@@ -24,6 +24,7 @@ rules:
       - core
       - sync
       - ui
+      - daemon
   subject-empty:
     level: error
   type:
