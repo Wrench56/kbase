@@ -44,6 +44,25 @@ void git_free(void) {
     git_libgit2_shutdown();
 }
 
+static int32_t ssh_agent_cred_cb(git_credential** out, const char* url, const char* username, uint32_t allowed_types, void* payload) {
+    (void) payload;
+
+    printf("Authenticate for \"%s\"...\n", url);
+    if (username == NULL) {
+        username = "git";
+    }
+
+    if (allowed_types & GIT_CREDENTIAL_SSH_KEY) {
+        return git_credential_ssh_key_from_agent(out, username);
+    }
+
+    if (allowed_types & GIT_CREDENTIAL_USERNAME) {
+        return git_credential_username_new(out, username);
+    }
+
+    return GIT_PASSTHROUGH;
+}
+
 git_repository* git_find_repo(char* cwd) {
     git_buf repo_name_buf = { 0 };
     int32_t error = git_repository_discover(&repo_name_buf, cwd, 1, NULL);
@@ -418,4 +437,34 @@ bool git_has_new_changes(git_repository* repo) {
 cleanup:
     if (status) git_status_list_free(status);
     return ret;
+}
+
+void git_push_branch(git_repository* repo, char* branch_name) {
+    git_remote* remote = NULL;
+    git_strarray refspecs = { 0 };
+    char refspec[2048];
+    char* errmsg = NULL;
+
+    int32_t error = git_remote_lookup(&remote, repo, "origin");
+    if (error < 0) {
+        errmsg = "Failed to look up Git remote";
+        goto cleanup;
+    }
+
+    snprintf(refspec, sizeof(refspec), "refs/heads/%s:refs/heads/%s", branch_name, branch_name);
+    char* specs[] = { refspec };
+    refspecs.strings = specs;
+    refspecs.count = 1;
+
+    git_push_options opts = GIT_PUSH_OPTIONS_INIT;
+    opts.callbacks.credentials = ssh_agent_cred_cb;
+    error = git_remote_push(remote, &refspecs, &opts);
+    if (error < 0) {
+        errmsg = "Failed to push to remote";
+        goto cleanup;
+    }
+
+cleanup:
+    if (remote) git_remote_free(remote);
+    if (errmsg) git_die(errmsg, error);
 }

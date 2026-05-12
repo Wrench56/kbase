@@ -2,6 +2,7 @@
 #include <pwd.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "commands/daemon.h"
 
@@ -18,6 +19,8 @@ static void get_username(char* username, size_t maxsize) {
 void cmd_daemon(int32_t argc, char** argv) {
     char username[256] = { 0 };
     char cwd[4096] = { 0 };
+    char commitmsg[64] = { 0 };
+
     get_username(username, sizeof(username));
     getcwd(cwd, sizeof(cwd));
 
@@ -34,13 +37,21 @@ void cmd_daemon(int32_t argc, char** argv) {
             git_switch_branch(repo, branch);
         }
     }
+    
 
+    time_t curr_time;
     for (;;) {
         sleep(1);
+        printf("ref\n");
+        fflush(stdout);
         if (git_has_new_changes(repo)) {
+            time(&curr_time);
             printf("Autosaving...\n");
             fflush(stdout);
-            git_commit_all(repo, "test");
+
+            snprintf(commitmsg, sizeof(commitmsg), "Autosave on %s", ctime(&curr_time));
+            git_commit_all(repo, commitmsg);
+            git_push_branch(repo, branch);
         }
     }
 }

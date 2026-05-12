@@ -16,6 +16,7 @@ git_repository* git_clone_repo(char* url, const char* cwd,  git_indexer_progress
 git_reference* git_new_branch(git_repository* repo, char* name);
 bool git_is_branch(git_repository* repo, char* branch_name);
 bool git_switch_branch(git_repository* repo, const char* name);
+void git_push_branch(git_repository* repo, char* branch_name);
 
 bool git_has_new_changes(git_repository* repo);
 void git_commit_all(git_repository* repo, char* msg);
