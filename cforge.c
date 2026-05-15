@@ -6,6 +6,8 @@
 
 #define APP_NAME "kbase"
 #define BUILD_DIR "build"
+#define RGFFI_DIR "extern/ripgrep-ffi"
+#define RGFFI_LIB RGFFI_DIR "/target/release/libripgrep_ffi.a"
 
 #define CC_TAG "[" CF_YELLOW "CC" CF_RESET "] "
 #define LD_TAG "[" CF_CYAN "LD" CF_RESET "] "
@@ -21,16 +23,16 @@ CF_CONFIG(release) {
     CF_SET_ENV(mode, "release");
 
     CF_SET_ENV(cflags, "-O2");
-    CF_SET_ENV(lflags, "-lgit2");
-    CF_SET_ENV(includes, "-Iincludes/");
+    CF_SET_ENV(lflags, RGFFI_LIB " -lgit2");
+    CF_SET_ENV(includes, "-Iincludes/ -I" RGFFI_DIR "/includes/");
 }
 
 CF_CONFIG(debug) {
     CF_SET_ENV(mode, "debug");
     
     CF_SET_ENV(cflags, "-g -fsanitize=undefined");
-    CF_SET_ENV(lflags, "-lgit2 -fsanitize=undefined");
-    CF_SET_ENV(includes, "-Iincludes/");
+    CF_SET_ENV(lflags, RGFFI_LIB " -lgit2 -fsanitize=undefined");
+    CF_SET_ENV(includes, "-Iincludes/ -I" RGFFI_DIR "/includes/");
 }
 
 CF_TARGET(release, CF_WITH_CONFIG(release), CF_DEPENDS(build), CF_HELP_STRING("Build in release mode")) {
@@ -53,12 +55,12 @@ CF_TARGET(build, CF_DEPENDS(link), CF_HIDDEN) {
     printf("\n=========================\nBuilt using mode: %s\n=========================\n\n", CF_ENV(mode));
 }
 
-CF_TARGET(link, CF_DEPENDS(compile), CF_HIDDEN) {
+CF_TARGET(link, CF_DEPENDS(compile), CF_DEPENDS(rgffi), CF_HIDDEN) {
     if (CF_FILE_NOT_UTD(BUILD_DIR "/" APP_NAME) || was_rebuilt) {
         CF_BANNER(LD_TAG "Linking...");
         char* object_files = CF_JOIN_GLOB(CF_GLOB(BUILD_DIR "/*.o"), " ");
         printf(LD_TAG "  %s\n", object_files);
-        CF_RUN("cc %s %s -o %s/%s", CF_ENV(lflags), object_files, BUILD_DIR, APP_NAME);
+        CF_RUN("cc %s %s -o %s/%s", object_files, CF_ENV(lflags), BUILD_DIR, APP_NAME);
         CF_FILE_MARK_UTD(BUILD_DIR "/" APP_NAME);
     }
 }
@@ -97,3 +99,9 @@ CF_TARGET(compile, CF_HIDDEN) {
     was_rebuilt |= compile_pattern("src/*/*.c");
 }
 
+CF_TARGET(rgffi, CF_HIDDEN) {
+    if CF_FILE_NOT_UTD(RGFFI_LIB) {
+        CF_RUN("cd %s && ./repo-init.sh && ./cforge.h %s", RGFFI_DIR, CF_ENV(mode));
+        CF_FILE_MARK_UTD(RGFFI_LIB);
+    }
+}

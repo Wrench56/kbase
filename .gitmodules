@@ -1,0 +1,3 @@
+[submodule "extern/ripgrep-ffi"]
+	path = extern/ripgrep-ffi
+	url = https://github.com/Wrench56/ripgrep-ffi
