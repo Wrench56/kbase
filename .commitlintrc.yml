@@ -28,6 +28,7 @@ rules:
       - daemon
       - grep
       - todo
+      - links
   subject-empty:
     level: error
   type:
