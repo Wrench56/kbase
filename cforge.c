@@ -12,6 +12,7 @@
 #define CC_TAG "[" CF_YELLOW "CC" CF_RESET "] "
 #define LD_TAG "[" CF_CYAN "LD" CF_RESET "] "
 #define RN_TAG "[" CF_GREEN "RN" CF_RESET "] "
+#define IN_TAG "[" CF_MAGENTA "IN" CF_RESET "] "
 
 bool was_rebuilt = false;
 
@@ -104,4 +105,16 @@ CF_TARGET(rgffi, CF_HIDDEN) {
         CF_RUN("cd %s && ./repo-init.sh && ./cforge.h %s", RGFFI_DIR, CF_ENV(mode));
         CF_FILE_MARK_UTD(RGFFI_LIB);
     }
+}
+
+CF_TARGET(install, CF_HELP_STRING("Install KBase")) {
+    printf(IN_TAG "Installing %s to /usr/local/bin\n", APP_NAME);
+
+    CF_RUN("%s", "install -d /usr/local/bin");
+    CF_RUN(
+        "install -m 755 %s/%s /usr/local/bin/%s",
+        BUILD_DIR,
+        APP_NAME,
+        APP_NAME
+    );
 }
