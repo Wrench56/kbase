@@ -3,14 +3,16 @@
 
 #include "cmd.h"
 
+#include "commands/daemon.h"
+#include "commands/grep.h"
 #include "commands/help.h"
 #include "commands/sync.h"
-#include "commands/daemon.h"
 
 cmd_t cmds[] = {
-    {"help", cmd_help},
-    {"sync", cmd_sync},
-    {"daemon", cmd_daemon},
+    { "grep", cmd_grep },
+    { "sync", cmd_sync },
+    { "daemon", cmd_daemon },
+    { "help", cmd_help },
 };
 
 void call_cmd(int32_t argc, char** argv) {

@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "ui/pbar.h"
 
@@ -32,7 +32,14 @@ void progress_bar(const char* label, size_t completed, size_t total) {
 
     int8_t percent = (int8_t) (ratio * 100.0);
     char suffix[128];
-    int32_t suffix_len = snprintf(suffix, sizeof(suffix), " %3d%% %zu/%zu", percent, completed, total);
+    int32_t suffix_len = snprintf(
+        suffix,
+        sizeof(suffix),
+        " %3d%% %zu/%zu",
+        percent,
+        completed,
+        total
+    );
     int32_t label_len = snprintf(NULL, 0, "%s: ", label);
 
     int64_t bar_width = cols - label_len - suffix_len - 4;

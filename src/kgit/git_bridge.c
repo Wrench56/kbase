@@ -10,7 +10,13 @@
 
 static __attribute__((noreturn)) void git_die(const char* msg, int32_t error) {
     const git_error* e = git_error_last();
-    fprintf(stderr, "%s: %s (%d)\n", msg, e ? e->message : "unknown libgit2 error", error);
+    fprintf(
+        stderr,
+        "%s: %s (%d)\n",
+        msg,
+        e ? e->message : "unknown libgit2 error",
+        error
+    );
     exit(1);
 }
 
@@ -36,7 +42,13 @@ static char* repo_name_from_url(const char* url) {
     return name;
 }
 
-static int32_t ssh_agent_cred_cb(git_credential** out, const char* url, const char* username, uint32_t allowed_types, void* payload) {
+static int32_t ssh_agent_cred_cb(
+    git_credential** out,
+    const char* url,
+    const char* username,
+    uint32_t allowed_types,
+    void* payload
+) {
     (void) payload;
 
     printf("Authenticating for \"%s\"...\n", url);
@@ -55,7 +67,10 @@ static int32_t ssh_agent_cred_cb(git_credential** out, const char* url, const ch
     return GIT_PASSTHROUGH;
 }
 
-static bool git_fetch_origin(git_repository* repo, git_indexer_progress_cb transfer_progress_cb) {
+static bool git_fetch_origin(
+    git_repository* repo,
+    git_indexer_progress_cb transfer_progress_cb
+) {
     git_remote* remote = NULL;
 
     char* errmsg = NULL;
@@ -80,12 +95,19 @@ static bool git_fetch_origin(git_repository* repo, git_indexer_progress_cb trans
     ret = true;
 
 cleanup:
-    if (remote) git_remote_free(remote);
-    if (errmsg) git_die(errmsg, error);
+    if (remote) {
+        git_remote_free(remote);
+    }
+    if (errmsg) {
+        git_die(errmsg, error);
+    }
     return ret;
 }
 
-static git_reference* kgit_new_branch_from_remote(git_repository* repo, const char* branch_name) {
+static git_reference* kgit_new_branch_from_remote(
+    git_repository* repo,
+    const char* branch_name
+) {
     git_reference* remote = NULL;
     git_reference* local = NULL;
     git_object* target = NULL;
@@ -95,7 +117,12 @@ static git_reference* kgit_new_branch_from_remote(git_repository* repo, const ch
     char remote_branch[1024];
     snprintf(remote_branch, sizeof(remote_branch), "origin/%s", branch_name);
 
-    int32_t error = git_branch_lookup(&remote, repo, remote_branch, GIT_BRANCH_REMOTE);
+    int32_t error = git_branch_lookup(
+        &remote,
+        repo,
+        remote_branch,
+        GIT_BRANCH_REMOTE
+    );
     if (error < 0) {
         errmsg = "Failed to find remote branch";
         goto cleanup;
@@ -107,7 +134,13 @@ static git_reference* kgit_new_branch_from_remote(git_repository* repo, const ch
         goto cleanup;
     }
 
-    error = git_branch_create(&local, repo, branch_name, (git_commit*) target, 0);
+    error = git_branch_create(
+        &local,
+        repo,
+        branch_name,
+        (git_commit*) target,
+        0
+    );
     if (error < 0) {
         errmsg = "Failed to create branch";
         goto cleanup;
@@ -120,8 +153,12 @@ static git_reference* kgit_new_branch_from_remote(git_repository* repo, const ch
     }
 
 cleanup:
-    if (remote) git_reference_free(remote);
-    if (target) git_object_free(target);
+    if (remote) {
+        git_reference_free(remote);
+    }
+    if (target) {
+        git_object_free(target);
+    }
 
     return local;
 }
@@ -139,7 +176,11 @@ git_repository* kgit_find_repo(char* cwd) {
     int32_t error = git_repository_discover(&repo_name_buf, cwd, 1, NULL);
     if (error != 0) {
         git_buf_dispose(&repo_name_buf);
-        git_die("Error: could not discover current repository. Please enter a knowledge base before sync", error);
+        git_die(
+            "Error: could not discover current repository. Please enter a "
+            "knowledge base before sync",
+            error
+        );
     }
 
     git_repository* repo = NULL;
@@ -152,7 +193,11 @@ git_repository* kgit_find_repo(char* cwd) {
     return repo;
 }
 
-static void kgit_fast_forward_current_branch(git_repository* repo, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb checkout_notify_cb) {
+static void kgit_fast_forward_current_branch(
+    git_repository* repo,
+    git_checkout_progress_cb checkout_progress_cb,
+    git_checkout_notify_cb checkout_notify_cb
+) {
     git_reference* head = NULL;
     git_reference* upstream = NULL;
     git_reference* updated_head = NULL;
@@ -207,7 +252,12 @@ static void kgit_fast_forward_current_branch(git_repository* repo, git_checkout_
         goto cleanup;
     }
 
-    error = git_object_lookup(&upstream_target, repo, upstream_oid, GIT_OBJECT_COMMIT);
+    error = git_object_lookup(
+        &upstream_target,
+        repo,
+        upstream_oid,
+        GIT_OBJECT_COMMIT
+    );
     if (error != 0) {
         errmsg = "Error: could not lookup upstream target";
         goto cleanup;
@@ -225,29 +275,56 @@ static void kgit_fast_forward_current_branch(git_repository* repo, git_checkout_
         goto cleanup;
     }
 
-    error = git_reference_set_target(&updated_head, head, upstream_oid, "kbase sync: fast-forward");
+    error = git_reference_set_target(
+        &updated_head,
+        head,
+        upstream_oid,
+        "kbase sync: fast-forward"
+    );
     if (error != 0) {
         errmsg = "Error: could not update branch ref";
         goto cleanup;
     }
 
 cleanup:
-    if (updated_head) git_reference_free(updated_head);
-    if (upstream_target) git_object_free(upstream_target);
-    if (upstream_commit) git_annotated_commit_free(upstream_commit);
-    if (upstream) git_reference_free(upstream);
-    if (head) git_reference_free(head);
-    if (errmsg) git_die(errmsg, error);
+    if (updated_head) {
+        git_reference_free(updated_head);
+    }
+    if (upstream_target) {
+        git_object_free(upstream_target);
+    }
+    if (upstream_commit) {
+        git_annotated_commit_free(upstream_commit);
+    }
+    if (upstream) {
+        git_reference_free(upstream);
+    }
+    if (head) {
+        git_reference_free(head);
+    }
+    if (errmsg) {
+        git_die(errmsg, error);
+    }
 }
 
-void kgit_sync_repo(git_repository* repo, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
+void kgit_sync_repo(
+    git_repository* repo,
+    git_indexer_progress_cb transfer_progress_cb,
+    git_checkout_progress_cb checkout_progress_cb,
+    git_checkout_notify_cb notify_cb
+) {
     git_fetch_origin(repo, transfer_progress_cb);
     kgit_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
 
     /* TODO: git_remote_stats() here */
 }
 
-git_repository* kgit_clone_repo(char* url, const char* cwd,  git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb) {
+git_repository* kgit_clone_repo(
+    char* url,
+    const char* cwd,
+    git_indexer_progress_cb transfer_progress_cb,
+    git_checkout_progress_cb checkout_progress_cb
+) {
     char* dir = repo_name_from_url(url);
     if (mkdir(dir, 0777) != 0) {
         perror("mkdir() error");
@@ -267,7 +344,12 @@ git_repository* kgit_clone_repo(char* url, const char* cwd,  git_indexer_progres
     int32_t error = git_clone(&repo, url, repo_dir, &clone_opts);
     if (error != 0) {
         char errmsg[4096];
-        snprintf(errmsg, sizeof(errmsg), "Error: could not clone knowledge base at \"%s\"", url);
+        snprintf(
+            errmsg,
+            sizeof(errmsg),
+            "Error: could not clone knowledge base at \"%s\"",
+            url
+        );
         free(dir);
         git_die(errmsg, error);
     }
@@ -276,7 +358,13 @@ git_repository* kgit_clone_repo(char* url, const char* cwd,  git_indexer_progres
     return repo;
 }
 
-void kgit_sync_workspace_branch(git_repository* repo, const char* branch_name, git_indexer_progress_cb transfer_progress_cb, git_checkout_progress_cb checkout_progress_cb, git_checkout_notify_cb notify_cb) {
+void kgit_sync_workspace_branch(
+    git_repository* repo,
+    const char* branch_name,
+    git_indexer_progress_cb transfer_progress_cb,
+    git_checkout_progress_cb checkout_progress_cb,
+    git_checkout_notify_cb notify_cb
+) {
     git_reference* branch = NULL;
     bool has_upstream = true;
 
@@ -313,7 +401,6 @@ git_reference* kgit_new_branch(git_repository* repo, char* name) {
         goto cleanup;
     }
 
-
     error = git_reference_peel(&head_obj, head_ref, GIT_OBJECT_COMMIT);
     if (error < 0) {
         goto cleanup;
@@ -325,8 +412,12 @@ git_reference* kgit_new_branch(git_repository* repo, char* name) {
     }
 
 cleanup:
-    if (head_obj) git_object_free(head_obj);
-    if (head_ref) git_reference_free(head_ref);
+    if (head_obj) {
+        git_object_free(head_obj);
+    }
+    if (head_ref) {
+        git_reference_free(head_ref);
+    }
 
     return branch;
 }
@@ -351,7 +442,9 @@ bool kgit_is_branch(git_repository* repo, char* branch_name) {
     }
 
 cleanup:
-    if (head) git_reference_free(head);
+    if (head) {
+        git_reference_free(head);
+    }
     return ret;
 }
 
@@ -395,9 +488,15 @@ bool kgit_switch_branch(git_repository* repo, const char* name) {
     ret = true;
 
 cleanup:
-    if (branch) git_reference_free(branch);
-    if (target) git_object_free(target);
-    if (errmsg) git_die(errmsg, error);
+    if (branch) {
+        git_reference_free(branch);
+    }
+    if (target) {
+        git_object_free(target);
+    }
+    if (errmsg) {
+        git_die(errmsg, error);
+    }
     return ret;
 }
 
@@ -409,7 +508,7 @@ void kgit_commit_all(git_repository* repo, char* msg) {
     git_config* cfg = NULL;
     git_config_entry* mentry = NULL;
     git_config_entry* nentry = NULL;
-    
+
     char* errmsg = NULL;
 
     git_oid tree_oid;
@@ -419,9 +518,15 @@ void kgit_commit_all(git_repository* repo, char* msg) {
         errmsg = "Failed to fetch index";
         goto cleanup;
     }
-    
+
     git_strarray paths_arr = { 0 };
-    error = git_index_add_all(index, &paths_arr, GIT_INDEX_ADD_DEFAULT, NULL, NULL);
+    error = git_index_add_all(
+        index,
+        &paths_arr,
+        GIT_INDEX_ADD_DEFAULT,
+        NULL,
+        NULL
+    );
     if (error < 0) {
         errmsg = "Failed to stage all files (add)";
         goto cleanup;
@@ -496,20 +601,47 @@ void kgit_commit_all(git_repository* repo, char* msg) {
 
     const git_commit* parents[] = { parent };
     git_oid new_commit;
-    error = git_commit_create(&new_commit, repo, "HEAD", me, me, "UTF-8", msg, tree, 1, parents);
+    error = git_commit_create(
+        &new_commit,
+        repo,
+        "HEAD",
+        me,
+        me,
+        "UTF-8",
+        msg,
+        tree,
+        1,
+        parents
+    );
     if (error < 0) {
         errmsg = "Failed to create new commit";
     }
 
 cleanup:
-    if (index) git_index_free(index);
-    if (head) git_reference_free(head);
-    if (tree) git_tree_free(tree);
-    if (parent) git_commit_free(parent);
-    if (cfg) git_config_free(cfg);
-    if (mentry) git_config_entry_free(mentry);
-    if (nentry) git_config_entry_free(nentry);
-    if (errmsg) git_die(errmsg, error);
+    if (index) {
+        git_index_free(index);
+    }
+    if (head) {
+        git_reference_free(head);
+    }
+    if (tree) {
+        git_tree_free(tree);
+    }
+    if (parent) {
+        git_commit_free(parent);
+    }
+    if (cfg) {
+        git_config_free(cfg);
+    }
+    if (mentry) {
+        git_config_entry_free(mentry);
+    }
+    if (nentry) {
+        git_config_entry_free(nentry);
+    }
+    if (errmsg) {
+        git_die(errmsg, error);
+    }
 }
 
 bool kgit_has_new_changes(git_repository* repo) {
@@ -527,7 +659,9 @@ bool kgit_has_new_changes(git_repository* repo) {
     }
 
 cleanup:
-    if (status) git_status_list_free(status);
+    if (status) {
+        git_status_list_free(status);
+    }
     return ret;
 }
 
@@ -543,7 +677,13 @@ void kgit_push_branch(git_repository* repo, char* branch_name) {
         goto cleanup;
     }
 
-    snprintf(refspec, sizeof(refspec), "refs/heads/%s:refs/heads/%s", branch_name, branch_name);
+    snprintf(
+        refspec,
+        sizeof(refspec),
+        "refs/heads/%s:refs/heads/%s",
+        branch_name,
+        branch_name
+    );
     char* specs[] = { refspec };
     refspecs.strings = specs;
     refspecs.count = 1;
@@ -557,6 +697,10 @@ void kgit_push_branch(git_repository* repo, char* branch_name) {
     }
 
 cleanup:
-    if (remote) git_remote_free(remote);
-    if (errmsg) git_die(errmsg, error);
+    if (remote) {
+        git_remote_free(remote);
+    }
+    if (errmsg) {
+        git_die(errmsg, error);
+    }
 }
