@@ -255,7 +255,7 @@ static void print_todos(const todo_results_t* results, bool today_only) {
         }
 
         printf(
-            "[%s]   %zu: [ %s%s" TODO_RESET " ] %s%s" TODO_RESET "\n",
+            "[%s]   %5zu: [ %s%s" TODO_RESET " ] %s%s" TODO_RESET "\n",
             status,
             item->location.line,
             color,
