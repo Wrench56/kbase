@@ -25,6 +25,7 @@ rules:
       - sync
       - ui
       - daemon
+      - grep
   subject-empty:
     level: error
   type:
