@@ -14,12 +14,21 @@
 #include "search/collector.h"
 
 #define TODO_RED "\033[31m"
+#define TODO_GREEN "\033[32m"
+#define TODO_CYAN "\033[36m"
 #define TODO_RESET "\033[0m"
+
+typedef enum todo_status {
+    TODO_OPEN,
+    TODO_WORKING,
+} todo_status_t;
 
 typedef struct todo_item {
     char* path;
     char* text;
     char date[11];
+    bool has_date;
+    todo_status_t status;
 
     search_location_t location;
     search_range_t line_span;
@@ -53,9 +62,15 @@ static bool todo_results_push(
     const char* text,
     size_t text_len,
     const char* date,
+    bool has_date,
+    todo_status_t status,
     const search_match_t* match
 ) {
-    if (!results || !path || !text || !date || !match) {
+    if (!results || !path || !text || !match) {
+        return false;
+    }
+
+    if (has_date && !date) {
         return false;
     }
 
@@ -83,13 +98,19 @@ static bool todo_results_push(
     *item = (todo_item_t) {
         .path = owned_path,
         .text = owned_text,
+        .has_date = has_date,
+        .status = status,
         .location = match->location,
         .line_span = match->line_span,
         .match_span = match->match_span,
     };
 
-    memcpy(item->date, date, 10);
-    item->date[10] = '\0';
+    if (has_date) {
+        memcpy(item->date, date, 10);
+        item->date[10] = '\0';
+    } else {
+        item->date[0] = '\0';
+    }
 
     return true;
 }
@@ -114,8 +135,8 @@ static bool parse_todo_hit(
     const search_match_t* match,
     todo_results_t* results
 ) {
-    static const char prefix[] = "[ ] TODO: ";
-    const size_t prefix_len = sizeof(prefix) - 1;
+    static const char todo_word[] = " TODO: ";
+    const size_t todo_word_len = sizeof(todo_word) - 1;
 
     size_t start = match->line_span.start;
     size_t end = match->line_span.end;
@@ -125,42 +146,68 @@ static bool parse_todo_hit(
         end--;
     }
 
-    if (end - start < prefix_len + 12) {
+    if (end - start < 9) {
         return true;
     }
 
     const char* line = (const char*) file->data + start;
     size_t line_len = end - start;
 
-    if (memcmp(line, prefix, prefix_len) != 0) {
+    if (line[0] != '[' || line[2] != ']' ||
+        memcmp(line + 3, todo_word, todo_word_len) != 0) {
         return true;
     }
 
-    const char* at = NULL;
-    for (size_t i = prefix_len; i + 12 <= line_len; i++) {
+    todo_status_t status;
+
+    switch (line[1]) {
+        case ' ':
+            status = TODO_OPEN;
+            break;
+        case '/':
+            status = TODO_WORKING;
+            break;
+        default:
+            return true;
+    }
+
+    size_t text_start = 3 + todo_word_len;
+    const char* text = line + text_start;
+    size_t text_len = line_len - text_start;
+
+    const char* date = NULL;
+    bool has_date = false;
+
+    for (size_t i = text_start; i + 12 <= line_len; i++) {
         if (line[i] == ' ' && line[i + 1] == '@') {
-            at = line + i;
+            date = line + i + 2;
+            has_date = true;
         }
     }
 
-    if (!at) {
-        return true;
+    if (has_date) {
+        text_len = (size_t) ((date - 2) - text);
+
+        if ((size_t) (date - line) + 10 > line_len) {
+            return true;
+        }
     }
 
-    const char* date = at + 2;
-    if ((size_t) (date - line) + 10 > line_len) {
-        return true;
-    }
-
-    const char* text = line + prefix_len;
-    size_t text_len = (size_t) (at - text);
     while (text_len > 0 && text[text_len - 1] == ' ') {
         text_len--;
     }
 
-    return todo_results_push(results, path, text, text_len, date, match);
+    return todo_results_push(
+        results,
+        path,
+        text,
+        text_len,
+        date,
+        has_date,
+        status,
+        match
+    );
 }
-
 static bool todo_hit_cb(
     const char* path,
     const file_buffer_t* file,
@@ -177,37 +224,45 @@ static void print_todos(const todo_results_t* results, bool today_only) {
         return;
     }
 
-    char* prev_path = "\0";
+    char* prev_path = "";
     for (size_t i = 0; i < results->len; i++) {
         const todo_item_t* item = &results->items[i];
 
-        int32_t date_cmp = strcmp(item->date, today);
+        int32_t date_cmp = item->has_date ? strcmp(item->date, today) : 0;
+        bool overdue = item->has_date && date_cmp < 0;
+        bool future = item->has_date && date_cmp > 0;
 
-        if (today_only && date_cmp != 0) {
+        if (today_only && future) {
             continue;
         }
 
-        bool overdue = date_cmp < 0;
         if (strcmp(prev_path, item->path) != 0) {
             prev_path = item->path;
             printf("[=] %s:\n", prev_path);
         }
 
-        if (overdue) {
-            printf(
-                TODO_RED "[ ]   %zu: [%s] %s (overdue)" TODO_RESET "\n",
-                item->location.line,
-                item->date,
-                item->text
-            );
+        const char* color = overdue ? TODO_RED
+            : (item->has_date)      ? TODO_CYAN
+                                    : "";
+        const char* reset = overdue ? TODO_RESET : "";
+        const char* date = item->has_date ? item->date : " no date! ";
+        const char* suffix = overdue ? TODO_RED " (overdue)" TODO_RESET : "";
+        const char* status;
+        if (item->status == TODO_WORKING) {
+            status = TODO_GREEN "W" TODO_RESET;
         } else {
-            printf(
-                "[ ]   %zu: [%s] %s\n",
-                item->location.line,
-                item->date,
-                item->text
-            );
+            status = " ";
         }
+
+        printf(
+            "[%s]   %zu: [ %s%s" TODO_RESET " ] %s%s" TODO_RESET "\n",
+            status,
+            item->location.line,
+            color,
+            date,
+            item->text,
+            suffix
+        );
     }
 }
 
@@ -262,7 +317,7 @@ void cmd_todo(int32_t argc, char** argv) {
     ropts.multi_line = true;
 
     const char* patterns[] = {
-        "^\\[ \\] TODO: .* @[0-9]{4}-[0-9]{2}-[0-9]{2}",
+        "^\\[[ /]\\] TODO: .+?( @[0-9]{4}-[0-9]{2}-[0-9]{2})?$",
     };
 
     rg_matcher_t* matcher = NULL;
