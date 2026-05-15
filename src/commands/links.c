@@ -263,9 +263,8 @@ static void print_links(const link_results_t* results) {
         }
 
         printf(
-            "[ ]   %zu:%zu: %s -> %s\n",
+            "[ ]   %5zu: %s -> %s\n",
             item->location.line,
-            item->location.column,
             item->text,
             item->target
         );
