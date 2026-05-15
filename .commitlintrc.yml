@@ -27,6 +27,7 @@ rules:
       - ui
       - daemon
       - grep
+      - todo
   subject-empty:
     level: error
   type:
