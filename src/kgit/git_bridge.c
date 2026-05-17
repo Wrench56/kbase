@@ -1,12 +1,16 @@
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <git2.h>
 
 #include "kgit/git_bridge.h"
 
 #define MAX_UNIX_PATH_SIZE 4096
+#define KBASE_SSH_FILE_ENVVAR_NAME "KBASE_SSH_PRIV_FILE"
 
 static __attribute__((noreturn)) void git_die(const char* msg, int32_t error) {
     const git_error* e = git_error_last();
@@ -42,29 +46,77 @@ static char* repo_name_from_url(const char* url) {
     return name;
 }
 
-static int32_t ssh_agent_cred_cb(
+int32_t ssh_agent_cred_cb(
     git_credential** out,
     const char* url,
-    const char* username,
+    const char* username_from_url,
     uint32_t allowed_types,
     void* payload
 ) {
-    (void) payload;
+    int32_t error = 1;
+    char username[256] = { 0 };
+    char* password = NULL;
 
-    printf("Authenticating for \"%s\"...\n", url);
-    if (username == NULL) {
-        username = "git";
+-    printf("Authenticating for \"%s\"...\n", url);
+    if (username_from_url != NULL) {
+        strcpy(username, username_from_url);
+    } else {
+        printf("Username: ");
+        if (fgets(username, sizeof(username), stdin) == NULL) {
+            goto out;
+        }
+
+        username[strcspn(username, "\r\n")] = '\0';
     }
 
     if (allowed_types & GIT_CREDENTIAL_SSH_KEY) {
-        return git_credential_ssh_key_from_agent(out, username);
+        char* privpath = getenv(KBASE_SSH_FILE_ENVVAR_NAME);
+        if (privpath == NULL || privpath[0] == '\0') {
+            fprintf(
+                stderr,
+                "Error: KBASE_SSH_PRIV_FILE environment variable not set!\n"
+            );
+            goto out;
+        }
+
+        size_t privlen = strlen(privpath);
+        char pubpath[privlen + 5];
+        memcpy(pubpath, privpath, privlen);
+        pubpath[privlen] = '.';
+        pubpath[privlen + 1] = 'p';
+        pubpath[privlen + 2] = 'u';
+        pubpath[privlen + 3] = 'b';
+        pubpath[privlen + 4] = '\0';
+
+        password = getpass("Password: ");
+        if (password == NULL) {
+            goto out;
+        }
+
+        error = git_credential_ssh_key_new(
+            out,
+            username,
+            pubpath,
+            privpath,
+            password
+        );
+    } else if (allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) {
+        password = getpass("Password: ");
+        if (password == NULL) {
+            goto out;
+        }
+
+        error = git_credential_userpass_plaintext_new(out, username, password);
+    } else if (allowed_types & GIT_CREDENTIAL_USERNAME) {
+        error = git_credential_username_new(out, username);
     }
 
-    if (allowed_types & GIT_CREDENTIAL_USERNAME) {
-        return git_credential_username_new(out, username);
+out:
+    if (password != NULL) {
+        memset(password, 0, strlen(password));
+        password = NULL;
     }
-
-    return GIT_PASSTHROUGH;
+    return error;
 }
 
 static bool git_fetch_origin(
