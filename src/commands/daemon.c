@@ -33,9 +33,7 @@ void cmd_daemon(int32_t argc, char** argv) {
 
     time_t curr_time;
     for (;;) {
-        sleep(1);
-        printf("ref\n");
-        fflush(stdout);
+        sleep(DAEMON_SLEEP_SECS);
         if (kgit_has_new_changes(repo)) {
             time(&curr_time);
             printf("Autosaving...\n");
