@@ -57,7 +57,7 @@ int32_t ssh_agent_cred_cb(
     char username[256] = { 0 };
     char* password = NULL;
 
--    printf("Authenticating for \"%s\"...\n", url);
+    printf("Authenticating for \"%s\"...\n", url);
     if (username_from_url != NULL) {
         strcpy(username, username_from_url);
     } else {
@@ -213,6 +213,30 @@ cleanup:
     }
 
     return local;
+}
+
+static bool kgit_current_branch_has_upstream(git_repository* repo) {
+    git_reference* head = NULL;
+    git_reference* upstream = NULL;
+    bool ret = false;
+
+    if (git_repository_head(&head, repo) < 0) {
+        goto cleanup;
+    }
+
+    if (git_branch_upstream(&upstream, head) == 0) {
+        ret = true;
+    }
+
+cleanup:
+    if (upstream) {
+        git_reference_free(upstream);
+    }
+    if (head) {
+        git_reference_free(head);
+    }
+
+    return ret;
 }
 
 void kgit_init(void) {
@@ -438,7 +462,7 @@ void kgit_sync_workspace_branch(
         }
     }
 
-    if (has_upstream) {
+    if (has_upstream && kgit_current_branch_has_upstream(repo)) {
         kgit_fast_forward_current_branch(repo, checkout_progress_cb, notify_cb);
     }
 }
