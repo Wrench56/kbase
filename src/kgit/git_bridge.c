@@ -70,6 +70,11 @@ int32_t ssh_agent_cred_cb(
     }
 
     if (allowed_types & GIT_CREDENTIAL_SSH_KEY) {
+        error = git_credential_ssh_key_from_agent(out, username);
+        if (error == 0) {
+            return GIT_OK;
+        }
+
         char* privpath = getenv(KBASE_SSH_FILE_ENVVAR_NAME);
         if (privpath == NULL || privpath[0] == '\0') {
             fprintf(
