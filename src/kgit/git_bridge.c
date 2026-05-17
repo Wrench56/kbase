@@ -509,13 +509,11 @@ bool kgit_switch_branch(git_repository* repo, const char* name) {
 
     int32_t error = git_branch_lookup(&branch, repo, name, GIT_BRANCH_LOCAL);
     if (error < 0) {
-        errmsg = "Failed to find local branch";
         goto cleanup;
     }
 
     error = git_reference_peel(&target, branch, GIT_OBJECT_COMMIT);
     if (error < 0) {
-        errmsg = "Failed to find commit on branch";
         goto cleanup;
     }
 
