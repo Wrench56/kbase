@@ -2,10 +2,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "commands/sync.h"
-
-#include "kgit/git_bridge.h"
+#include "kgit/common.h"
+#include "kgit/remote.h"
 #include "ui/pbar.h"
+
+#include "commands/sync.h"
 
 #define MAX_PATH_NAME 4096
 

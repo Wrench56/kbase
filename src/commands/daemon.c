@@ -4,9 +4,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "commands/daemon.h"
+#include "kgit/branch.h"
+#include "kgit/commit.h"
+#include "kgit/common.h"
 
-#include "kgit/git_bridge.h"
+#include "commands/daemon.h"
 
 static void get_username(char* username, size_t maxsize) {
     uid_t uid = getuid();
