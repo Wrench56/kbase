@@ -29,6 +29,7 @@ rules:
       - grep
       - todo
       - links
+      - add
   subject-empty:
     level: error
   type:
