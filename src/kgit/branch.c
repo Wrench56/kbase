@@ -344,3 +344,206 @@ cleanup:
     }
     return ret;
 }
+
+void kgit_squash_branch_into_current(
+    git_repository* repo,
+    const char* source_branch,
+    const char* message
+) {
+    git_reference* head_ref = NULL;
+    git_reference* source_ref = NULL;
+
+    git_commit* head_commit = NULL;
+    git_commit* source_commit = NULL;
+    git_commit* base_commit = NULL;
+
+    git_tree* head_tree = NULL;
+    git_tree* source_tree = NULL;
+    git_tree* base_tree = NULL;
+    git_tree* result_tree = NULL;
+
+    git_index* index = NULL;
+    git_signature* sig = NULL;
+
+    git_oid base_oid;
+    git_oid tree_oid;
+    git_oid commit_oid;
+
+    char* errmsg = NULL;
+
+    int32_t error = git_repository_head(&head_ref, repo);
+    if (error < 0) {
+        errmsg = "Failed to read HEAD";
+        goto cleanup;
+    }
+
+    const git_oid* head_oid = git_reference_target(head_ref);
+    if (!head_oid) {
+        errmsg = "HEAD has no target";
+        error = -1;
+        goto cleanup;
+    }
+
+    error = git_commit_lookup(&head_commit, repo, head_oid);
+    if (error < 0) {
+        errmsg = "Failed to lookup HEAD commit";
+        goto cleanup;
+    }
+
+    error = git_branch_lookup(
+        &source_ref,
+        repo,
+        source_branch,
+        GIT_BRANCH_LOCAL
+    );
+    if (error < 0) {
+        errmsg = "Failed to find source branch";
+        goto cleanup;
+    }
+
+    const git_oid* source_oid = git_reference_target(source_ref);
+    if (!source_oid) {
+        errmsg = "Source branch has no target";
+        error = -1;
+        goto cleanup;
+    }
+
+    error = git_commit_lookup(&source_commit, repo, source_oid);
+    if (error < 0) {
+        errmsg = "Failed to lookup source commit";
+        goto cleanup;
+    }
+
+    error = git_merge_base(&base_oid, repo, head_oid, source_oid);
+    if (error < 0) {
+        errmsg = "Failed to find merge base";
+        goto cleanup;
+    }
+
+    error = git_commit_lookup(&base_commit, repo, &base_oid);
+    if (error < 0) {
+        errmsg = "Failed to lookup merge base commit";
+        goto cleanup;
+    }
+
+    error = git_commit_tree(&head_tree, head_commit);
+    if (error < 0) {
+        errmsg = "Failed to get HEAD tree";
+        goto cleanup;
+    }
+
+    error = git_commit_tree(&source_tree, source_commit);
+    if (error < 0) {
+        errmsg = "Failed to get source tree";
+        goto cleanup;
+    }
+
+    error = git_commit_tree(&base_tree, base_commit);
+    if (error < 0) {
+        errmsg = "Failed to get base tree";
+        goto cleanup;
+    }
+
+    git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
+
+    error = git_merge_trees(
+        &index,
+        repo,
+        base_tree,
+        head_tree,
+        source_tree,
+        &merge_opts
+    );
+    if (error < 0) {
+        errmsg = "Failed to squash-merge trees";
+        goto cleanup;
+    }
+
+    if (git_index_has_conflicts(index)) {
+        errmsg = "Squash merge has conflicts; resolve manually";
+        error = -1;
+        goto cleanup;
+    }
+
+    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE |
+        GIT_CHECKOUT_RECREATE_MISSING;
+
+    error = git_checkout_index(repo, index, &checkout_opts);
+    if (error < 0) {
+        errmsg = "Failed to checkout squash result";
+        goto cleanup;
+    }
+
+    error = git_index_write_tree_to(&tree_oid, index, repo);
+    if (error < 0) {
+        errmsg = "Failed to write squash tree";
+        goto cleanup;
+    }
+
+    error = git_tree_lookup(&result_tree, repo, &tree_oid);
+    if (error < 0) {
+        errmsg = "Failed to lookup squash tree";
+        goto cleanup;
+    }
+
+    kgit_signature(&sig);
+
+    const git_commit* parents[] = {
+        head_commit,
+    };
+
+    error = git_commit_create(
+        &commit_oid,
+        repo,
+        "HEAD",
+        sig,
+        sig,
+        "UTF-8",
+        message,
+        result_tree,
+        1,
+        parents
+    );
+    if (error < 0) {
+        errmsg = "Failed to create squash commit";
+    }
+
+cleanup:
+    if (sig) {
+        git_signature_free(sig);
+    }
+    if (result_tree) {
+        git_tree_free(result_tree);
+    }
+    if (base_tree) {
+        git_tree_free(base_tree);
+    }
+    if (source_tree) {
+        git_tree_free(source_tree);
+    }
+    if (head_tree) {
+        git_tree_free(head_tree);
+    }
+    if (index) {
+        git_index_free(index);
+    }
+    if (base_commit) {
+        git_commit_free(base_commit);
+    }
+    if (source_commit) {
+        git_commit_free(source_commit);
+    }
+    if (head_commit) {
+        git_commit_free(head_commit);
+    }
+    if (source_ref) {
+        git_reference_free(source_ref);
+    }
+    if (head_ref) {
+        git_reference_free(head_ref);
+    }
+    if (errmsg) {
+        kgit_die(errmsg, error);
+    }
+}

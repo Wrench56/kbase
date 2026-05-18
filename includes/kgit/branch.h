@@ -21,5 +21,10 @@ void kgit_fast_forward_current_branch(
     git_checkout_progress_cb checkout_progress_cb,
     git_checkout_notify_cb checkout_notify_cb
 );
+void kgit_squash_branch_into_current(
+    git_repository* repo,
+    const char* source_branch,
+    const char* message
+);
 
 #endif // KBASE_KGIT_BRANCH_H

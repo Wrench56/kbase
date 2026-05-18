@@ -17,5 +17,6 @@ int32_t kgit_ssh_agent_cred_cb(
     uint32_t allowed_types,
     void* payload
 );
+void kgit_signature(git_signature** signature);
 
 #endif // KBASE_KGIT_COMMON_H

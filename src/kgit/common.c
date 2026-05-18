@@ -124,3 +124,49 @@ git_repository* kgit_find_repo(char* cwd) {
 
     return repo;
 }
+
+void kgit_signature(git_signature** signature) {
+    git_config* cfg = NULL;
+    git_config_entry* mentry = NULL;
+    git_config_entry* nentry = NULL;
+
+    char* errmsg = NULL;
+
+    int32_t error = git_config_open_default(&cfg);
+    if (error < 0) {
+        errmsg = "Failed to open config";
+        goto cleanup;
+    }
+
+    error = git_config_get_entry(&mentry, cfg, "user.email");
+    if (error < 0) {
+        errmsg = "Failed to fetch email from config";
+        goto cleanup;
+    }
+
+    error = git_config_get_entry(&nentry, cfg, "user.name");
+    if (error < 0) {
+        errmsg = "Failed to fetch name from config";
+        goto cleanup;
+    }
+
+    error = git_signature_now(signature, nentry->value, mentry->value);
+    if (error < 0) {
+        errmsg = "Failed to create commit signature";
+        goto cleanup;
+    }
+
+cleanup:
+    if (cfg) {
+        git_config_free(cfg);
+    }
+    if (mentry) {
+        git_config_entry_free(mentry);
+    }
+    if (nentry) {
+        git_config_entry_free(nentry);
+    }
+    if (errmsg) {
+        kgit_die(errmsg, error);
+    }
+}

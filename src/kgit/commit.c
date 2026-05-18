@@ -9,9 +9,6 @@ void kgit_commit_all(git_repository* repo, char* msg) {
     git_reference* head = NULL;
     git_tree* tree = NULL;
     git_commit* parent = NULL;
-    git_config* cfg = NULL;
-    git_config_entry* mentry = NULL;
-    git_config_entry* nentry = NULL;
 
     char* errmsg = NULL;
 
@@ -60,30 +57,8 @@ void kgit_commit_all(git_repository* repo, char* msg) {
         goto cleanup;
     }
 
-    error = git_config_open_default(&cfg);
-    if (error < 0) {
-        errmsg = "Failed to open config";
-        goto cleanup;
-    }
-
-    error = git_config_get_entry(&mentry, cfg, "user.email");
-    if (error < 0) {
-        errmsg = "Failed to fetch email from config";
-        goto cleanup;
-    }
-
-    error = git_config_get_entry(&nentry, cfg, "user.name");
-    if (error < 0) {
-        errmsg = "Failed to fetch name from config";
-        goto cleanup;
-    }
-
     git_signature* me = NULL;
-    error = git_signature_now(&me, nentry->value, mentry->value);
-    if (error < 0) {
-        errmsg = "Failed to create commit signature";
-        goto cleanup;
-    }
+    kgit_signature(&me);
 
     error = git_index_write(index);
     if (error < 0) {
@@ -134,14 +109,8 @@ cleanup:
     if (parent) {
         git_commit_free(parent);
     }
-    if (cfg) {
-        git_config_free(cfg);
-    }
-    if (mentry) {
-        git_config_entry_free(mentry);
-    }
-    if (nentry) {
-        git_config_entry_free(nentry);
+    if (me) {
+        git_signature_free(me);
     }
     if (errmsg) {
         kgit_die(errmsg, error);

@@ -3,6 +3,7 @@
 
 #include "cmd.h"
 
+#include "commands/add.h"
 #include "commands/daemon.h"
 #include "commands/grep.h"
 #include "commands/help.h"
@@ -15,6 +16,7 @@ cmd_t cmds[] = {
     {"sync", cmd_sync},
     {"links", cmd_links},
     {"todo", cmd_todo},
+    {"add", cmd_add},
     {"daemon", cmd_daemon},
     {"help", cmd_help},
 };
